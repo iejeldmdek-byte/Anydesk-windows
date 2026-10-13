@@ -1,5 +1,5 @@
 
-name: AnyDesk Install Test
+name: AnyDesk Diagnostic
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  anydesk-test:
+  diagnose:
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -23,35 +23,60 @@ jobs:
             -OutFile $installer
 
           if (-not (Test-Path $installer)) {
-            throw "Download failed."
+            throw "Installer download failed."
           }
 
-          Write-Host "Installer downloaded."
+          $file = Get-Item $installer
+          Write-Host "File size: $($file.Length) bytes"
 
-      - name: Try installing AnyDesk
+          $signature = Get-AuthenticodeSignature $installer
+          Write-Host "Signature status: $($signature.Status)"
+
+          if ($signature.SignerCertificate) {
+            Write-Host "Publisher: $($signature.SignerCertificate.Subject)"
+          }
+
+          Get-FileHash $installer -Algorithm SHA256
+
+      - name: Inspect installer help
         shell: pwsh
         run: |
           $installer = Join-Path $env:RUNNER_TEMP "AnyDesk.exe"
 
+          Write-Host "Testing whether the installer starts."
+
           $process = Start-Process `
             -FilePath $installer `
-            -ArgumentList "--version" `
+            -ArgumentList "--help" `
             -Wait `
-            -PassThru
-
-          Write-Host "AnyDesk process exit code: $($process.ExitCode)"
-
-      - name: Check AnyDesk process
-        shell: pwsh
-        run: |
-          $process = Get-Process -Name "AnyDesk" `
+            -PassThru `
             -ErrorAction SilentlyContinue
 
           if ($process) {
-            Write-Host "AnyDesk process detected."
+            Write-Host "Exit code: $($process.ExitCode)"
           } else {
-            Write-Host "AnyDesk GUI or service is not running."
+            Write-Host "The installer could not be started."
           }
 
+      - name: Check installation state
+        shell: pwsh
+        run: |
+          $paths = @(
+            "$env:ProgramFiles\AnyDesk\AnyDesk.exe",
+            "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe",
+            "$env:LOCALAPPDATA\AnyDesk\AnyDesk.exe"
+          )
+
+          foreach ($path in $paths) {
+            if (Test-Path $path) {
+              Write-Host "Found AnyDesk at: $path"
+            }
+          }
+
+          Get-Process -Name AnyDesk `
+            -ErrorAction SilentlyContinue |
+            Select-Object Name, Id, Path
+
           Write-Host "GitHub runner is temporary."
+          Write-Host "This diagnostic does not create a remote ID."
           
