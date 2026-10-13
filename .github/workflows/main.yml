@@ -1,5 +1,5 @@
 
-name: AnyDesk Setup Test
+name: AnyDesk Install Test
 
 on:
   workflow_dispatch:
@@ -23,19 +23,35 @@ jobs:
             -OutFile $installer
 
           if (-not (Test-Path $installer)) {
-            throw "AnyDesk download failed."
+            throw "Download failed."
           }
 
-          Write-Host "AnyDesk installer downloaded."
+          Write-Host "Installer downloaded."
 
-      - name: Check Windows environment
+      - name: Try installing AnyDesk
         shell: pwsh
         run: |
-          Get-ComputerInfo |
-            Select-Object WindowsProductName,
-                          WindowsVersion,
-                          OsBuildNumber
+          $installer = Join-Path $env:RUNNER_TEMP "AnyDesk.exe"
 
-          Write-Host "Runner is temporary."
-          Write-Host "No unattended remote access configured."
+          $process = Start-Process `
+            -FilePath $installer `
+            -ArgumentList "--version" `
+            -Wait `
+            -PassThru
+
+          Write-Host "AnyDesk process exit code: $($process.ExitCode)"
+
+      - name: Check AnyDesk process
+        shell: pwsh
+        run: |
+          $process = Get-Process -Name "AnyDesk" `
+            -ErrorAction SilentlyContinue
+
+          if ($process) {
+            Write-Host "AnyDesk process detected."
+          } else {
+            Write-Host "AnyDesk GUI or service is not running."
+          }
+
+          Write-Host "GitHub runner is temporary."
           
