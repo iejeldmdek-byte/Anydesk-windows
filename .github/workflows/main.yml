@@ -1,5 +1,5 @@
 
-name: Check Windows Runner
+name: AnyDesk Setup Test
 
 on:
   workflow_dispatch:
@@ -8,12 +8,27 @@ permissions:
   contents: read
 
 jobs:
-  check-windows:
+  anydesk-test:
     runs-on: windows-latest
     timeout-minutes: 10
 
     steps:
-      - name: Identify Windows version
+      - name: Download AnyDesk
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "AnyDesk.exe"
+
+          Invoke-WebRequest `
+            -Uri "https://download.anydesk.com/AnyDesk.exe" `
+            -OutFile $installer
+
+          if (-not (Test-Path $installer)) {
+            throw "AnyDesk download failed."
+          }
+
+          Write-Host "AnyDesk installer downloaded."
+
+      - name: Check Windows environment
         shell: pwsh
         run: |
           Get-ComputerInfo |
@@ -22,5 +37,5 @@ jobs:
                           OsBuildNumber
 
           Write-Host "Runner is temporary."
-          Write-Host "This is not a native Windows 10 runner."
+          Write-Host "No unattended remote access configured."
           
